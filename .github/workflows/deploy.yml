@@ -9,6 +9,8 @@ on:
 env:
   DOCKER_IMAGE: shadrach85/restaurant-auth-service
   SERVICE_NAME: auth-service
+  VALUES_FILE: helm/restaurant-system/values-test.yaml
+  VALUES_KEY: authService
 
 jobs:
   build-and-test:
@@ -37,7 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     outputs:
-      image_tag: ${{ steps.meta.outputs.tags }}
       short_sha: ${{ steps.vars.outputs.short_sha }}
     steps:
       - name: Checkout code
@@ -56,22 +57,14 @@ jobs:
         id: vars
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKER_IMAGE }}
-          tags: |
-            type=sha,prefix=
-            type=ref,event=branch
-            type=raw,value=latest,enable={{is_default_branch}}
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:${{ steps.vars.outputs.short_sha }}
+            ${{ env.DOCKER_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -87,13 +80,20 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: infrastructure
 
-      - name: Update deployment manifest
+      - name: Install yq
+        run: |
+          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+
+      - name: Update Helm values
         run: |
           cd infrastructure
-          # Update the image tag in the deployment manifest
-          sed -i "s|image: ${{ env.DOCKER_IMAGE }}:.*|image: ${{ env.DOCKER_IMAGE }}:${{ needs.build-and-push-docker.outputs.short_sha }}|g" kubernetes/auth-service-deployment.yaml
+          yq -i '.${{ env.VALUES_KEY }}.image.tag = "${{ needs.build-and-push-docker.outputs.short_sha }}"' ${{ env.VALUES_FILE }}
+          echo "Updated ${{ env.VALUES_KEY }}.image.tag to: ${{ needs.build-and-push-docker.outputs.short_sha }}"
 
-          # Commit and push the change
+      - name: Commit and push
+        run: |
+          cd infrastructure
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
@@ -105,5 +105,5 @@ jobs:
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Service**: ${{ env.SERVICE_NAME }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Image**: ${{ env.DOCKER_IMAGE }}:${{ needs.build-and-push-docker.outputs.short_sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **ArgoCD will automatically sync the deployment**" >> $GITHUB_STEP_SUMMARY
+          echo "- **Helm values key**: ${{ env.VALUES_KEY }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **ArgoCD will automatically sync via Helm**" >> $GITHUB_STEP_SUMMARY
