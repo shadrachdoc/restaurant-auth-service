@@ -171,8 +171,12 @@ async def list_staff(
         elif role_upper == "CUSTOMER":
             query = query.where(User.role == UserRole.CUSTOMER)
     else:
-        # If no role filter, show both CHEF and CUSTOMER
-        query = query.where(or_(User.role == UserRole.CHEF, User.role == UserRole.CUSTOMER))
+        # If no role filter, show CHEF, STAFF and CUSTOMER
+        query = query.where(or_(
+            User.role == UserRole.CHEF,
+            User.role == UserRole.STAFF,
+            User.role == UserRole.CUSTOMER
+        ))
 
     query = query.order_by(User.created_at.desc())
 
@@ -272,6 +276,79 @@ async def create_customer(
     await db.refresh(new_user)
 
     return new_user
+
+
+@router.post("/staff", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_staff(
+    user_data: StaffCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Create a new staff account (POS cashier / floor staff)
+    Restaurant admin can create staff for their restaurant
+    """
+    if current_user.role == UserRole.RESTAURANT_ADMIN:
+        if user_data.restaurant_id != current_user.restaurant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to create staff for other restaurants"
+            )
+
+    existing_user = await db.execute(
+        select(User).where(User.username == user_data.username)
+    )
+    if existing_user.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already registered"
+        )
+
+    new_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        full_name=user_data.full_name,
+        hashed_password=hash_password(user_data.password),
+        role=UserRole.STAFF,
+        restaurant_id=user_data.restaurant_id,
+        is_active=True
+    )
+
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+
+    return new_user
+
+
+@router.delete("/staff/{staff_id}")
+async def delete_staff(
+    staff_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a staff account"""
+    result = await db.execute(
+        select(User).where(User.id == staff_id, User.role == UserRole.STAFF)
+    )
+    staff = result.scalar_one_or_none()
+
+    if not staff:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Staff member not found"
+        )
+
+    if current_user.role == UserRole.RESTAURANT_ADMIN and staff.restaurant_id != current_user.restaurant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this staff member"
+        )
+
+    await db.delete(staff)
+    await db.commit()
+
+    return {"message": "Staff member deleted successfully"}
 
 
 @router.delete("/chef/{chef_id}")

@@ -9,6 +9,7 @@ class UserRole(str, Enum):
     MASTER_ADMIN = "master_admin"
     RESTAURANT_ADMIN = "restaurant_admin"
     CHEF = "chef"
+    STAFF = "staff"
     CUSTOMER = "customer"
 
 
