@@ -120,6 +120,14 @@ async def login(
             detail="Account is disabled"
         )
 
+    # POS login: validate user belongs to the specified restaurant
+    if credentials.restaurant_id is not None:
+        if user.restaurant_id is None or str(user.restaurant_id) != str(credentials.restaurant_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User does not belong to this restaurant"
+            )
+
     # Create access token
     access_token = create_access_token(
         data={

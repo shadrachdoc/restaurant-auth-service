@@ -105,6 +105,7 @@ class LoginRequest(BaseModel):
     """Schema for login request"""
     username: str
     password: str
+    restaurant_id: Optional[UUID4] = None  # Required for POS login to scope to a restaurant
 
 
 class TokenResponse(BaseModel):
