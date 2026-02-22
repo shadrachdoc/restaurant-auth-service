@@ -105,7 +105,8 @@ class LoginRequest(BaseModel):
     """Schema for login request"""
     username: str
     password: str
-    restaurant_id: Optional[UUID4] = None  # Required for POS login to scope to a restaurant
+    restaurant_id: Optional[UUID4] = None  # Full UUID for web/API login
+    restaurant_code: Optional[str] = None  # 5-digit short code for POS login (first 5 chars of UUID)
 
 
 class TokenResponse(BaseModel):

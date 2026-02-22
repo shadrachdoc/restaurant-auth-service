@@ -128,6 +128,14 @@ async def login(
                 detail="User does not belong to this restaurant"
             )
 
+    # POS short code login: 5-digit code matches first 5 chars of restaurant UUID
+    if credentials.restaurant_code is not None:
+        if user.restaurant_id is None or not str(user.restaurant_id).startswith(credentials.restaurant_code.lower()):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid restaurant code"
+            )
+
     # Create access token
     access_token = create_access_token(
         data={
