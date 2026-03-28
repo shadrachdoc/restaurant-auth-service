@@ -58,6 +58,7 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = None
     restaurant_id: Optional[UUID4] = None
     is_active: Optional[bool] = None
+    pos_passcode: Optional[str] = Field(None, min_length=4, max_length=4, pattern=r'^\d{4}$')
 
     @field_validator('role', mode='before')
     @classmethod
