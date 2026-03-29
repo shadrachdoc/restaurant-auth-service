@@ -63,11 +63,11 @@ async def pos_passcode_login(data: POSPasscodeLoginRequest, db: AsyncSession = D
 
     from ..schemas import UserResponse
     access_token = create_access_token({"sub": str(matched.id), "role": matched.role.name if hasattr(matched.role, 'name') else str(matched.role)})
-    refresh_token = create_refresh_token({"sub": str(matched.id)})
+    refresh_token_str, _ = create_refresh_token(matched.id)
 
     return POSLoginResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
+        refresh_token=refresh_token_str,
         token_type="bearer",
         expires_in=3600,
         user=UserResponse.model_validate(matched),
