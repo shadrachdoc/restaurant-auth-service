@@ -46,6 +46,7 @@ class StaffCreate(UserBase):
     """Schema for staff creation (chef/customer) by restaurant admin"""
     password: str = Field(..., min_length=8, max_length=100)
     restaurant_id: UUID4
+    pos_passcode: Optional[str] = Field(None, min_length=4, max_length=4, pattern=r'^\d{4}$')
 
 
 class UserUpdate(BaseModel):
@@ -57,6 +58,7 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = None
     restaurant_id: Optional[UUID4] = None
     is_active: Optional[bool] = None
+    pos_passcode: Optional[str] = Field(None, min_length=4, max_length=4, pattern=r'^\d{4}$')
 
     @field_validator('role', mode='before')
     @classmethod
@@ -85,6 +87,7 @@ class StaffUpdate(BaseModel):
     email: Optional[EmailStr] = None
     password: Optional[str] = Field(None, min_length=8, max_length=100)
     is_active: Optional[bool] = None
+    pos_passcode: Optional[str] = Field(None, min_length=4, max_length=4, pattern=r'^\d{4}$')
 
 
 class UserResponse(UserBase):
@@ -143,9 +146,14 @@ class PasswordResetConfirm(BaseModel):
 
 
 class PasswordChange(BaseModel):
-    """Schema for password change"""
-    old_password: str
+    """Schema for password change — accepts old_password or current_password"""
+    old_password: Optional[str] = None
+    current_password: Optional[str] = None  # alias for old_password
     new_password: str = Field(..., min_length=8, max_length=100)
+
+    @property
+    def resolved_old_password(self) -> str:
+        return self.old_password or self.current_password or ""
 
 
 class PasswordVerifyRequest(BaseModel):
@@ -221,3 +229,28 @@ class PartnerTokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     partner: PartnerResponse
+
+
+# ─── POS Passcode Auth Schemas ──────────────────────────────────────────────
+
+class POSStaffMember(BaseModel):
+    """Minimal staff info shown on POS login screen (no sensitive data)"""
+    id: UUID4
+    full_name: str
+    role: str
+
+    model_config = {"from_attributes": True}
+
+
+class POSPasscodeLoginRequest(BaseModel):
+    restaurant_id: Optional[UUID4] = None
+    restaurant_code: Optional[str] = Field(None, min_length=5, max_length=5)  # 5-char UUID prefix
+    passcode: str = Field(..., min_length=4, max_length=4, pattern=r'^\d{4}$')
+
+
+class POSLoginResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: UserResponse
